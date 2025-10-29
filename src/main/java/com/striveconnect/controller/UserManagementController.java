@@ -61,5 +61,13 @@ public class UserManagementController {
         long count = userService.getAlumniCount();
         return ResponseEntity.ok(Map.of("count", count));
     }
+    
+    
+    @GetMapping("/alumnus/list")
+    public ResponseEntity<List<UserDto>> getAlumnusUsers() {
+        List<UserDto> alumnusList = userService.getAlumnusListForAdmin(); 
+        return ResponseEntity.ok(alumnusList);
+    }
+
 }
 

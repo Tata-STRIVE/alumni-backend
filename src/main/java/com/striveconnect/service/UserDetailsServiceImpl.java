@@ -39,5 +39,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         // The password field is empty as we use OTP, not password-based auth.
         return new org.springframework.security.core.userdetails.User(user.getMobileNumber(), "", authorities);
     }
+    
+    
 }
 

@@ -1,5 +1,6 @@
 package com.striveconnect.repository;
 
+import com.striveconnect.dto.CourseDto;
 import com.striveconnect.entity.Course;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -16,5 +17,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
      */
     @Query("SELECT c FROM Course c LEFT JOIN FETCH c.translations WHERE c.tenantId = :tenantId")
     List<Course> findAllByTenantIdWithTranslations(String tenantId);
+
+	
 }
 

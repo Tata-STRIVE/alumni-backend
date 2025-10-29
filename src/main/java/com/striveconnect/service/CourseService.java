@@ -37,22 +37,34 @@ public class CourseService {
 
     /**
      * Converts a Course entity to a translated CourseDto.
+     * Includes CRITICAL FIX for NullPointerException on missing translations.
      */
     private CourseDto convertToDto(Course course, String languageCode, boolean fetchBatches) {
         CourseDto dto = new CourseDto();
         dto.setCourseId(course.getCourseId());
         dto.setIconUrl(course.getIconUrl());
 
-        // Find the correct translation
+        // Find the correct translation, falling back to 'en' if necessary
         CourseTranslation translation = getTranslation(course, languageCode);
         
-        dto.setName(translation.getName());
-        dto.setDescription(translation.getDescription());
-        dto.setEligibilityCriteria(translation.getEligibilityCriteria());
-        dto.setCareerPath(translation.getCareerPath());
+        // --- CRITICAL FIX START: Defensive Programming ---
+        if (translation != null) {
+            dto.setName(translation.getName());
+            dto.setDescription(translation.getDescription());
+            dto.setEligibilityCriteria(translation.getEligibilityCriteria());
+            dto.setCareerPath(translation.getCareerPath());
+        } else {
+            // Set defaults to avoid the NullPointerException if no translation exists
+            dto.setName("Translation Missing (" + languageCode.toUpperCase() + ")");
+            dto.setDescription("Content is unavailable in " + languageCode.toUpperCase());
+            dto.setEligibilityCriteria(null);
+            dto.setCareerPath(null);
+        }
+        // --- CRITICAL FIX END ---
 
         // As requested, if they click a course, show upcoming batches
         if (fetchBatches) {
+            // NOTE: Assumes BatchService.getUpcomingBatchesForCourse exists and works.
             List<BatchDto> upcomingBatches = batchService.getUpcomingBatchesForCourse(course.getCourseId(), languageCode);
             dto.setUpcomingBatches(upcomingBatches);
         }
@@ -64,16 +76,27 @@ public class CourseService {
      * Helper to find the correct translation, defaulting to 'en'.
      */
     public static CourseTranslation getTranslation(Course course, String languageCode) {
-        return course.getTranslations().stream()
+        // 1. Try to find the requested language
+        CourseTranslation requestedTranslation = course.getTranslations().stream()
                 .filter(t -> t.getLanguageCode().equalsIgnoreCase(languageCode))
                 .findFirst()
-                .orElse(
-                    // Default to English if the requested language isn't found
-                    course.getTranslations().stream()
-                        .filter(t -> t.getLanguageCode().equalsIgnoreCase("en"))
-                        .findFirst()
-                        .orElse(null) // Or throw an exception if 'en' is also missing
-                );
-    }
-}
+                .orElse(null);
 
+        if (requestedTranslation != null) {
+            return requestedTranslation;
+        }
+        
+        // 2. If requested is not found, try to find the English ('en') fallback
+        CourseTranslation englishFallback = course.getTranslations().stream()
+            .filter(t -> t.getLanguageCode().equalsIgnoreCase("en"))
+            .findFirst()
+            .orElse(null);
+
+        // 3. Return the fallback (or null if it's missing too)
+        return englishFallback;
+    }
+
+	
+
+	
+}

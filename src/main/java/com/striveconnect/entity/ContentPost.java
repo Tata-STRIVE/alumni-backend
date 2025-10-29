@@ -54,7 +54,7 @@ public class ContentPost {
     public enum PostType {
         SUCCESS_STORY,
         EVENT,
-        AWARENESS
+        AWARENESS,STORY
     }
 
     // Getters and Setters

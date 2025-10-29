@@ -1,6 +1,9 @@
 package com.striveconnect.repository;
 
 import com.striveconnect.entity.User;
+import com.striveconnect.entity.User.Role;
+import com.striveconnect.entity.User.Status;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -21,5 +24,7 @@ public interface UserRepository extends JpaRepository<User, String> {
      * Used for the admin dashboard stat card.
      */
     long countByTenantIdAndRoleAndStatus(String tenantId, User.Role role, User.Status status);
+
+	List<User> findByTenantIdAndRoleAndStatus(String tenantId, Role alumnus, Status active);
 }
 

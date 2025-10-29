@@ -1,10 +1,14 @@
 package com.striveconnect.controller;
 
 import com.striveconnect.dto.BatchDto;
+import com.striveconnect.dto.ContentPostCreateDto;
+import com.striveconnect.dto.ContentPostDto;
 import com.striveconnect.dto.CourseDto;
 import com.striveconnect.service.BatchService;
 import com.striveconnect.service.CourseService;
 import com.striveconnect.util.TenantContext;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,5 +50,7 @@ public class CourseController {
         List<BatchDto> batches = batchService.getUpcomingBatchesForCourse(courseId, lang);
         return ResponseEntity.ok(batches);
     }
+    
+   
 }
 

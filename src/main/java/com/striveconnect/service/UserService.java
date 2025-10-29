@@ -137,5 +137,26 @@ public class UserService {
         
         return dto;
     }
+
+    /**
+     * Admin: Gets a list of all active alumni for the current tenant.
+     * Used to populate the dropdown for Success Story creation.
+     */
+	public List<UserDto> getAlumnusListForAdmin() {
+		String tenantId = TenantContext.getCurrentTenant();
+        
+        // Find all users who are ALUMNUS and ACTIVE in the current tenant
+        List<User> alumni = userRepository.findByTenantIdAndRoleAndStatus(
+            tenantId, 
+            User.Role.ALUMNUS, 
+            User.Status.ACTIVE
+        );
+        
+        return alumni.stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+	}
+
+
 }
 
