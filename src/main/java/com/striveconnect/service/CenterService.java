@@ -24,8 +24,10 @@ public class CenterService {
      *
      * @return A list of CenterDto objects.
      */
-    public List<CenterDto> getCentersByTenant() {
-        String tenantId = TenantContext.getCurrentTenant();
+    public List<CenterDto> getCentersByTenant(String tenantId) {
+    	
+    	if(tenantId==null)
+         tenantId = TenantContext.getCurrentTenant();
         
         // Use the repository to find centers by tenant
         List<Center> centers = centerRepository.findByTenantId(tenantId);

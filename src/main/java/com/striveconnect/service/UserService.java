@@ -22,10 +22,16 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final BatchRepository batchRepository;
+    private final OtpService authService; // Assumed for OTP logic
+   // private final SmsService smsService;     // Assumed for sending SMS
 
-    public UserService(UserRepository userRepository, BatchRepository batchRepository) {
+    public UserService(UserRepository userRepository, BatchRepository batchRepository, OtpService authService
+    		//, SmsService smsService
+    		) {
         this.userRepository = userRepository;
         this.batchRepository = batchRepository;
+        this.authService = authService;
+     //   this.smsService = smsService;
     }
     
     
@@ -40,6 +46,9 @@ public class UserService {
             });
         
         // Find the selected batch
+        User newUser = new User();
+
+        if (registrationRequest.getBatchId() != null) {
         Batch batch = batchRepository.findById(registrationRequest.getBatchId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Selected batch not found."));
 
@@ -47,8 +56,8 @@ public class UserService {
         if (!batch.getTenantId().equals(tenantId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid batch selection.");
         }
-
-        User newUser = new User();
+        newUser.setBatch(batch); // Link the user to the batch
+        }
         newUser.setUserId(UUID.randomUUID().toString());
         newUser.setTenantId(tenantId);
         newUser.setFullName(registrationRequest.getFullName());
@@ -56,7 +65,10 @@ public class UserService {
         newUser.setEmail(registrationRequest.getEmail());
         newUser.setRole(User.Role.ALUMNUS);
         newUser.setStatus(User.Status.PENDING_APPROVAL);
-        newUser.setBatch(batch); // Link the user to the batch
+        newUser.setHighestEducationQualification(registrationRequest.getHighestEducationQualification());
+        newUser.setEmail(registrationRequest.getEmail());
+        newUser.setProfilePictureUrl(registrationRequest.getProfilePictureUrl());
+
 
         User savedUser = userRepository.save(newUser);
         return convertToDto(savedUser);
@@ -70,20 +82,7 @@ public class UserService {
         return convertToDto(currentUser);
     }
     
-    /**
-     * Updates the profile for the currently authenticated user.
-     */
-    public UserDto updateMyProfile(UpdateProfileDto profileDto) {
-        User currentUser = getCurrentUser();
-
-        currentUser.setEmail(profileDto.getEmail());
-        currentUser.setCurrentCity(profileDto.getCurrentCity());
-        currentUser.setCurrentCompany(profileDto.getCurrentCompany());
-
-        User updatedUser = userRepository.save(currentUser);
-        // This will now correctly return the saved data
-        return convertToDto(updatedUser);
-    }
+   
 
     public List<UserDto> getPendingApprovals() {
         String tenantId = TenantContext.getCurrentTenant();
@@ -129,11 +128,15 @@ public class UserService {
         dto.setEmail(user.getEmail());
         dto.setRole(user.getRole().name());
         dto.setStatus(user.getStatus().name());
+        dto.setHighestEducationQualification(user.getHighestEducationQualification());
+        dto.setProfilePictureUrl(user.getProfilePictureUrl());
         
         // --- This is the fix ---
         // Ensure the new fields from the entity are copied to the DTO
-        dto.setCurrentCity(user.getCurrentCity());
-        dto.setCurrentCompany(user.getCurrentCompany());
+		/*
+		 * dto.setCurrentCity(user.getCurrentCity());
+		 * dto.setCurrentCompany(user.getCurrentCompany());
+		 */
         
         return dto;
     }
@@ -156,7 +159,74 @@ public class UserService {
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
 	}
+	
+	 /**
+     * Updates the profile for the currently authenticated user.
+     */
+    public UserDto updateMyProfile(UpdateProfileDto profileDto) {
+        User currentUser = getCurrentUser();
 
+        currentUser.setEmail(profileDto.getEmail());
+        currentUser.setCurrentCity(profileDto.getCurrentCity());
+        currentUser.setCurrentCompany(profileDto.getCurrentCompany());
+        currentUser.setHighestEducationQualification(profileDto.getHighestEducationQualification());
+        
+        // Handle profile picture URL update
+        if (profileDto.getProfilePictureUrl() != null) {
+            currentUser.setProfilePictureUrl(profileDto.getProfilePictureUrl());
+        }
+
+        User updatedUser = userRepository.save(currentUser);
+        return convertToDto(updatedUser);
+    }
+
+    /**
+     * NEW: Step 1 - Request Mobile Change
+     * Generates an OTP and sends it to the *new* mobile number.
+     */
+    public void requestMobileChangeOtp(String newMobileNumber) {
+        String tenantId = TenantContext.getCurrentTenant();
+        
+        // Check if the new number is already in use by another user in the same tenant
+        userRepository.findByMobileNumberAndTenantId(newMobileNumber, tenantId)
+            .ifPresent(existingUser -> {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This mobile number is already in use by another account.");
+            });
+
+        // Generate a new OTP for the *new* mobile number
+        String otp = authService.generateOtp(newMobileNumber);
+        
+        // Send the OTP via SMS
+        String message = "Your OTP to change your Strive Connect mobile number is " + otp;
+  //      smsService.sendSms(newMobileNumber, message);
+    }
+
+    /**
+     * NEW: Step 2 - Verify Mobile Change
+     * Validates the OTP and updates the user's mobile number.
+     */
+    public void verifyMobileChange(String newMobileNumber, String otp) {
+        String tenantId = TenantContext.getCurrentTenant();
+        User currentUser = getCurrentUser(); // Get the currently logged-in user
+
+        // Validate the OTP against the *new* mobile number
+        boolean isValidOtp = authService.validateOtp(newMobileNumber,  otp);
+        
+        if (!isValidOtp) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired OTP.");
+        }
+        // Final check for safety
+        userRepository.findByMobileNumberAndTenantId(newMobileNumber, tenantId)
+            .ifPresent(existingUser -> {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "This mobile number is already in use by another account.");
+            });
+            
+        // --- THIS IS THE FIX ---
+        // The two missing lines to save the change to the database.
+        currentUser.setMobileNumber(newMobileNumber);
+        userRepository.save(currentUser);
+	
+    }
 
 }
 

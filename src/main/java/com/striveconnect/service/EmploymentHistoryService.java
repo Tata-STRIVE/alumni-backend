@@ -1,7 +1,9 @@
 package com.striveconnect.service;
 
+import com.striveconnect.dto.AdminReviewDto;
 import com.striveconnect.dto.EmploymentHistoryDto;
 import com.striveconnect.entity.EmploymentHistory;
+import com.striveconnect.entity.EmploymentHistory.VerificationStatus;
 import com.striveconnect.entity.User;
 import com.striveconnect.repository.EmploymentHistoryRepository;
 import com.striveconnect.repository.UserRepository;
@@ -12,12 +14,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class EmploymentHistoryService {
 
     private final EmploymentHistoryRepository historyRepository;
@@ -28,194 +30,171 @@ public class EmploymentHistoryService {
         this.userRepository = userRepository;
     }
 
-    // --- ALUMNI METHODS ---
+    /**
+     * Alumnus: Gets their own history.
+     */
+    public List<EmploymentHistoryDto> getMyHistory() {
+        User currentUser = getCurrentUser();
+        return historyRepository.findByAuthorOrderByStartDateDesc(currentUser)
+                .stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
 
-    @Transactional
-    public EmploymentHistoryDto addEmploymentHistory(EmploymentHistoryDto historyDto) {
+    /**
+     * Alumnus: Adds a new history record.
+     */
+    public EmploymentHistoryDto addHistory(EmploymentHistoryDto dto) {
         User currentUser = getCurrentUser();
         
         // --- "SMART UPDATE" LOGIC ---
-        if (historyDto.getEndDate() == null) { // If this is a new "Present" job
-            Optional<EmploymentHistory> existingPresentJob = historyRepository.findByUserAndEndDateIsNull(currentUser);
+        if (dto.getEndDate() == null) { // If this is a new "Present" job
+            Optional<EmploymentHistory> existingPresentJob = historyRepository.findByAuthorAndEndDateIsNull(currentUser);
             
             if (existingPresentJob.isPresent()) {
+                // Auto-close the old "Present" job
                 EmploymentHistory oldJob = existingPresentJob.get();
-                if (historyDto.getStartDate().isBefore(oldJob.getStartDate())) {
+                if (dto.getStartDate().isBefore(oldJob.getStartDate())) {
                      throw new ResponseStatusException(HttpStatus.CONFLICT, "New job start date cannot be before current job start date.");
                 }
-                oldJob.setEndDate(historyDto.getStartDate().minusDays(1));
+                oldJob.setEndDate(dto.getStartDate().minusDays(1));
                 historyRepository.save(oldJob);
             }
         }
         
-        validateOverlaps(currentUser, historyDto, null);
-
-        EmploymentHistory newHistory = new EmploymentHistory();
-        newHistory.setUser(currentUser);
-        newHistory.setCompanyName(historyDto.getCompanyName());
-        newHistory.setJobTitle(historyDto.getJobTitle());
-        newHistory.setStartDate(historyDto.getStartDate());
-        newHistory.setEndDate(historyDto.getEndDate());
-        newHistory.setLocation(historyDto.getLocation());
-        newHistory.setStatus(EmploymentHistory.VerificationStatus.PENDING_VERIFICATION);
-
-        EmploymentHistory savedHistory = historyRepository.save(newHistory);
-
+        EmploymentHistory history = new EmploymentHistory();
+        history.setAuthor(currentUser);
+        history.setStatus(VerificationStatus.PENDING_VERIFICATION);
+        
+        // Map all fields from DTO
+        updateEntityFromDto(history, dto);
+        
+        EmploymentHistory saved = historyRepository.save(history);
+        
         // --- DATA SYNC TO PROFILE ---
-        if (savedHistory.getEndDate() == null) {
-            currentUser.setCurrentCompany(savedHistory.getCompanyName());
-            currentUser.setCurrentCity(savedHistory.getLocation());
+        if (saved.getEndDate() == null) {
+            currentUser.setCurrentCompany(saved.getCompanyName());
+            currentUser.setCurrentCity(saved.getLocation());
             userRepository.save(currentUser);
         }
 
-        return convertToDto(savedHistory);
+        return convertToDto(saved);
     }
 
-    @Transactional
-    public EmploymentHistoryDto updateEmploymentHistory(Long historyId, EmploymentHistoryDto historyDto) {
+    /**
+     * Alumnus: Updates a rejected or pending record.
+     */
+    public EmploymentHistoryDto updateHistory(Long historyId, EmploymentHistoryDto dto) {
         User currentUser = getCurrentUser();
-        EmploymentHistory record = historyRepository.findById(historyId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employment record not found."));
+        EmploymentHistory history = historyRepository.findById(historyId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "History record not found."));
 
-        if (!record.getUser().getUserId().equals(currentUser.getUserId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You are not authorized to edit this record.");
+        // Security check
+        if (!history.getAuthor().getUserId().equals(currentUser.getUserId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You cannot edit this record.");
         }
 
-        validateOverlaps(currentUser, historyDto, historyId);
-
-        boolean wasPresentJob = record.getEndDate() == null;
-        boolean isNowPresentJob = historyDto.getEndDate() == null;
-
-        if (isNowPresentJob && !wasPresentJob) {
-            Optional<EmploymentHistory> existingPresentJob = historyRepository.findByUserAndEndDateIsNull(currentUser);
-            if (existingPresentJob.isPresent()) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "You already have a job marked as 'Present'. Please update that entry first.");
+        // Business logic check
+        if (history.getStatus() == VerificationStatus.VERIFIED) {
+             // Allow editing only end date for a verified record
+            history.setEndDate(dto.getEndDate());
+             // If end date was added, it may need re-verification
+            if(dto.getEndDate() != null) {
+                 history.setStatus(VerificationStatus.PENDING_VERIFICATION);
             }
-        }
-
-        if (record.getStatus() == EmploymentHistory.VerificationStatus.VERIFIED) {
-            record.setEndDate(historyDto.getEndDate());
         } else {
-            record.setCompanyName(historyDto.getCompanyName());
-            record.setJobTitle(historyDto.getJobTitle());
-            record.setStartDate(historyDto.getStartDate());
-            record.setEndDate(historyDto.getEndDate());
-            record.setLocation(historyDto.getLocation());
+            // Allow full edit for PENDING or REJECTED
+            updateEntityFromDto(history, dto);
+            history.setStatus(VerificationStatus.PENDING_VERIFICATION);
+            history.setAdminRemarks(null); // Clear old rejection remarks
         }
         
-        if (record.getStatus() == EmploymentHistory.VerificationStatus.VERIFIED && !wasPresentJob) {
-             record.setStatus(EmploymentHistory.VerificationStatus.PENDING_VERIFICATION);
-             record.setVerifiedBy(null);
-        }
-
-        EmploymentHistory savedHistory = historyRepository.save(record);
-
-        if (savedHistory.getEndDate() == null) {
-            currentUser.setCurrentCompany(savedHistory.getCompanyName());
-            currentUser.setCurrentCity(savedHistory.getLocation());
-        } else if (wasPresentJob && savedHistory.getEndDate() != null) {
-            if (currentUser.getCurrentCompany() != null && currentUser.getCurrentCompany().equals(record.getCompanyName())) {
-                 currentUser.setCurrentCompany(null);
-                 currentUser.setCurrentCity(null);
-            }
-        }
-        userRepository.save(currentUser);
-
-        return convertToDto(savedHistory);
+        EmploymentHistory saved = historyRepository.save(history);
+        return convertToDto(saved);
     }
 
-    public List<EmploymentHistoryDto> getMyEmploymentHistory() {
-        User currentUser = getCurrentUser();
-        return getEmploymentHistoryForUser(currentUser);
-    }
-    
-    // --- ADMIN METHODS ---
+    /**
+     * Admin: Gets all pending records for their tenant.
+     */
     public List<EmploymentHistoryDto> getPendingHistory() {
         String tenantId = TenantContext.getCurrentTenant();
-        List<EmploymentHistory> historyList = historyRepository.findByTenantIdAndStatus(tenantId, EmploymentHistory.VerificationStatus.PENDING_VERIFICATION);
-        return historyList.stream()
-                .map(this::convertToDtoWithAuthor)
+        return historyRepository.findByTenantAndStatus(tenantId, VerificationStatus.PENDING_VERIFICATION)
+                .stream()
+                .map(this::convertToDto) // DTO converter now includes authorName
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Admin: Gets history for a specific user.
+     */
     public List<EmploymentHistoryDto> getHistoryForUser(String userId) {
-        User adminUser = getCurrentUser();
-        User targetUser = userRepository.findById(userId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Target user not found."));
-
-        if (!adminUser.getTenantId().equals(targetUser.getTenantId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access to this user's history is denied.");
-        }
-
-        return getEmploymentHistoryForUser(targetUser);
-    }
-    
-    public void verifyEmploymentRecord(Long historyId) {
-        User adminUser = getCurrentUser();
-        EmploymentHistory record = historyRepository.findById(historyId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Employment record not found."));
-
-        if (!record.getUser().getTenantId().equals(adminUser.getTenantId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access to this record is denied.");
-        }
-
-        record.setStatus(EmploymentHistory.VerificationStatus.VERIFIED);
-        record.setVerifiedBy(adminUser);
-        historyRepository.save(record);
-    }
-
-    // --- PRIVATE HELPERS ---
-    private void validateOverlaps(User user, EmploymentHistoryDto dto, Long currentHistoryId) {
-        List<EmploymentHistory> allHistory = historyRepository.findByUser(user);
-        LocalDate newStart = dto.getStartDate();
-        if (newStart == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Start date cannot be empty.");
-        LocalDate newEnd = dto.getEndDate() == null ? LocalDate.MAX : dto.getEndDate();
-
-        if (newStart.isAfter(newEnd)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Start date cannot be after end date.");
-        }
-
-        for (EmploymentHistory record : allHistory) {
-            if (currentHistoryId != null && record.getEmploymentId().equals(currentHistoryId)) continue;
-            LocalDate oldStart = record.getStartDate();
-            LocalDate oldEnd = record.getEndDate() == null ? LocalDate.MAX : record.getEndDate();
-            if (newStart.isBefore(oldEnd) && newEnd.isAfter(oldStart)) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "The dates for this job overlap with an existing entry.");
-            }
-        }
-    }
-    
-    private List<EmploymentHistoryDto> getEmploymentHistoryForUser(User user) {
-        List<EmploymentHistory> historyList = historyRepository.findByUser(user);
-        return historyList.stream()
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found."));
+        return historyRepository.findByAuthorOrderByStartDateDesc(user)
+                .stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
-    
+
+    /**
+     * Admin: Reviews (Approves/Rejects) a pending record.
+     */
+    public EmploymentHistoryDto reviewHistory(Long historyId, AdminReviewDto reviewDto) {
+        // Admin user is validated by security config
+        EmploymentHistory history = historyRepository.findById(historyId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "History record not found."));
+
+        if (reviewDto.getStatus().equalsIgnoreCase("VERIFIED")) {
+            history.setStatus(VerificationStatus.VERIFIED);
+            history.setAdminRemarks(null);
+        } else if (reviewDto.getStatus().equalsIgnoreCase("REJECTED")) {
+            if (reviewDto.getRemarks() == null || reviewDto.getRemarks().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rejection remarks are required.");
+            }
+            history.setStatus(VerificationStatus.REJECTED);
+            history.setAdminRemarks(reviewDto.getRemarks());
+        } else {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid status provided.");
+        }
+
+        EmploymentHistory saved = historyRepository.save(history);
+        return convertToDto(saved);
+    }
+
+    // --- Helper Methods ---
+
     private User getCurrentUser() {
         String mobileNumber = SecurityContextHolder.getContext().getAuthentication().getName();
         String tenantId = TenantContext.getCurrentTenant();
         return userRepository.findByMobileNumberAndTenantId(mobileNumber, tenantId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Authenticated user not found."));
     }
-
-    private EmploymentHistoryDto convertToDtoWithAuthor(EmploymentHistory history) {
-        EmploymentHistoryDto dto = convertToDto(history);
-        if (history.getUser() != null) {
-            dto.setAuthorName(history.getUser().getFullName());
-        }
-        return dto;
-    }
     
+    // Helper to map DTO fields to the Entity
+    private void updateEntityFromDto(EmploymentHistory history, EmploymentHistoryDto dto) {
+        history.setCompanyName(dto.getCompanyName());
+        history.setJobTitle(dto.getJobTitle());
+        history.setLocation(dto.getLocation());
+        history.setStartDate(dto.getStartDate());
+        history.setEndDate(dto.getEndDate());
+        history.setAttachmentType(dto.getAttachmentType());
+        history.setAttachmentUrl(dto.getAttachmentUrl());
+    }
+
+    // Helper to map Entity fields to the DTO
     private EmploymentHistoryDto convertToDto(EmploymentHistory history) {
         EmploymentHistoryDto dto = new EmploymentHistoryDto();
         dto.setEmploymentId(history.getEmploymentId());
         dto.setCompanyName(history.getCompanyName());
         dto.setJobTitle(history.getJobTitle());
+        dto.setLocation(history.getLocation());
         dto.setStartDate(history.getStartDate());
         dto.setEndDate(history.getEndDate());
-        dto.setLocation(history.getLocation());
         dto.setStatus(history.getStatus().name());
+        dto.setAuthorName(history.getAuthor().getFullName()); // Include author name
+        dto.setAttachmentType(history.getAttachmentType());
+        dto.setAttachmentUrl(history.getAttachmentUrl());
+        dto.setAdminRemarks(history.getAdminRemarks());
         return dto;
     }
 }

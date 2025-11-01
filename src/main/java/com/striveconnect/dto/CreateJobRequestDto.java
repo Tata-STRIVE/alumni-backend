@@ -4,12 +4,16 @@ package com.striveconnect.dto;
  * Data Transfer Object for creating a new job posting by an Admin.
  * Contains only the fields necessary to create a new job.
  */
+/**
+ * 
+ */
 public class CreateJobRequestDto {
     private String title;
     private String companyName;
     private String location;
     private String description;
-
+    private String hrContactEmail;
+    private String hrContactPhone;
     // Getters and Setters
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
@@ -19,4 +23,17 @@ public class CreateJobRequestDto {
     public void setLocation(String location) { this.location = location; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+	public String getHrContactEmail() {
+		return hrContactEmail;
+	}
+	public void setHrContactEmail(String hrContactEmail) {
+		this.hrContactEmail = hrContactEmail;
+	}
+	public String getHrContactPhone() {
+		return hrContactPhone;
+	}
+	public void setHrContactPhone(String hrContactPhone) {
+		this.hrContactPhone = hrContactPhone;
+	}
+    
 }

@@ -10,6 +10,8 @@ public class RegistrationRequestDto {
     private String email;
     private String tenantId;
     private Long batchId; // Updated to use Batch ID
+    private String profilePictureUrl;
+    private String highestEducationQualification;
 
     // Getters and Setters
     public String getFullName() {
@@ -42,5 +44,20 @@ public class RegistrationRequestDto {
     public void setBatchId(Long batchId) {
         this.batchId = batchId;
     }
+	public String getProfilePictureUrl() {
+		return profilePictureUrl;
+	}
+	public void setProfilePictureUrl(String profilePictureUrl) {
+		this.profilePictureUrl = profilePictureUrl;
+	}
+	public String getHighestEducationQualification() {
+		return highestEducationQualification;
+	}
+	public void setHighestEducationQualification(String highestEducationQualification) {
+		this.highestEducationQualification = highestEducationQualification;
+	}
+    
+    
+    
 }
 

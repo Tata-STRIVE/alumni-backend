@@ -4,6 +4,8 @@ import com.striveconnect.dto.ApplicationDto;
 import com.striveconnect.dto.CreateJobRequestDto;
 import com.striveconnect.dto.JobApplicationDto;
 import com.striveconnect.dto.JobPostingDto;
+import com.striveconnect.dto.JobReviewDto;
+
 import com.striveconnect.dto.UpdateApplicationStatusDto;
 import com.striveconnect.entity.JobApplication;
 import com.striveconnect.entity.JobPosting;
@@ -74,7 +76,7 @@ public class JobService {
         jobPosting.setCompanyName(createDto.getCompanyName());
         jobPosting.setLocation(createDto.getLocation());
         jobPosting.setDescription(createDto.getDescription());
-        jobPosting.setPostedBy(currentUser);
+        jobPosting.setAuthor(currentUser);
         jobPosting.setStatus(JobPosting.JobStatus.PENDING_VERIFICATION); // Set status for admin review
         jobPosting.setCreatedAt(LocalDateTime.now());
         
@@ -105,11 +107,29 @@ public class JobService {
         jobPostingRepository.save(jobToApprove);
     }
 
+    
+    /**
+     * Admin: Approves a job posting, changing its status to OPEN.
+     */
+    public void reviewJob(Long jobId , JobReviewDto jobReviewDto ) {
+        JobPosting jobToApprove = findJobAndVerifyTenant(jobId);
+
+        if (jobToApprove.getStatus() != JobPosting.JobStatus.PENDING_VERIFICATION) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This job is not pending verification.");
+        }
+
+        String reviewStatus = jobReviewDto.getStatus();
+        jobToApprove.setStatus(JobPosting.JobStatus.valueOf(reviewStatus));
+        jobToApprove.setRejectionRemarks(jobReviewDto.getRejectionRemarks());
+
+        jobPostingRepository.save(jobToApprove);
+        
+    }
     // --- DTO Converters & Helpers ---
     private JobPostingDto convertToDtoWithAuthor(JobPosting jobPosting) {
         JobPostingDto dto = convertToDto(jobPosting);
-        if (jobPosting.getPostedBy() != null) {
-            dto.setAuthorName(jobPosting.getPostedBy().getFullName());
+        if (jobPosting.getAuthor() != null) {
+            dto.setAuthorName(jobPosting.getAuthor().getFullName());
         }
         return dto;
     }
@@ -141,7 +161,7 @@ public class JobService {
         jobPosting.setCompanyName(createDto.getCompanyName());
         jobPosting.setLocation(createDto.getLocation());
         jobPosting.setDescription(createDto.getDescription());
-        jobPosting.setPostedBy(adminUser);
+        jobPosting.setAuthor(adminUser);
         jobPosting.setStatus(JobPosting.JobStatus.OPEN);
         jobPosting.setCreatedAt(LocalDateTime.now());
         JobPosting savedJob = jobPostingRepository.save(jobPosting);

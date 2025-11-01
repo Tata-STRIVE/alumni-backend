@@ -4,6 +4,7 @@ import com.striveconnect.dto.ApplicationDto;
 import com.striveconnect.dto.CreateJobRequestDto;
 import com.striveconnect.dto.JobApplicationDto;
 import com.striveconnect.dto.JobPostingDto;
+import com.striveconnect.dto.JobReviewDto;
 import com.striveconnect.dto.UpdateApplicationStatusDto;
 import com.striveconnect.service.JobService;
 import org.springframework.http.HttpStatus;
@@ -66,6 +67,7 @@ public class JobController {
     public ResponseEntity<?> updateApplicationStatus(
             @PathVariable Long applicationId,
             @RequestBody UpdateApplicationStatusDto statusDto) {
+    	System.out.println("updateApplicationStatus");
         jobService.updateApplicationStatus(applicationId, statusDto);
         return ResponseEntity.ok(Map.of("message", "Application status updated successfully"));
     }
@@ -77,10 +79,13 @@ public class JobController {
         return ResponseEntity.ok(pendingJobs);
     }
 
-    @PostMapping("/{jobId}/approve")
-    public ResponseEntity<?> approveJob(@PathVariable Long jobId) {
-        jobService.approveJob(jobId);
+    @PostMapping("/{jobId}/review")
+    public ResponseEntity<?> approveJob(@PathVariable Long jobId ,   @RequestBody JobReviewDto jobReviewDto ) {
+      
+        jobService.reviewJob(jobId,jobReviewDto);
         return ResponseEntity.ok(Map.of("message", "Job approved successfully."));
     }
+    
+   
 }
 

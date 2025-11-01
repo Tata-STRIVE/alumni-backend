@@ -25,11 +25,13 @@ public class ContentController {
      * The tenant is determined from the user's token or a public header.
      * For simplicity, we assume TenantContext is set.
      */
-    @GetMapping("/{type}")
-    public ResponseEntity<List<ContentPostDto>> getPosts(@PathVariable String type) {
+    @GetMapping("/{type}/tenantId/{tenantId}")
+    public ResponseEntity<List<ContentPostDto>> getPosts(@PathVariable String type ,@PathVariable String tenantId ) {
         // This assumes a tenant context. For a truly public page, you'd
         // get the tenant from the domain (strive.localhost)
-        String tenantId = TenantContext.getCurrentTenant(); 
+    	System.out.print("tenantId===>"+ tenantId);
+    	if(tenantId==null)
+         tenantId = TenantContext.getCurrentTenant(); 
         List<ContentPostDto> posts = contentService.getPosts(type, tenantId);
         return ResponseEntity.ok(posts);
     }

@@ -7,7 +7,9 @@ public class UpdateProfileDto {
     private String email;
     private String currentCompany;
     private String currentCity;
-
+    private String profilePictureUrl;
+    private String highestEducationQualification;
+    
     // Getters and Setters
     public String getEmail() {
         return email;
@@ -32,4 +34,23 @@ public class UpdateProfileDto {
     public void setCurrentCity(String currentCity) {
         this.currentCity = currentCity;
     }
+
+	public String getProfilePictureUrl() {
+		return profilePictureUrl;
+	}
+
+	public void setProfilePictureUrl(String profilePictureUrl) {
+		this.profilePictureUrl = profilePictureUrl;
+	}
+
+	public String getHighestEducationQualification() {
+		return highestEducationQualification;
+	}
+
+	public void setHighestEducationQualification(String highestEducationQualification) {
+		this.highestEducationQualification = highestEducationQualification;
+	}
+    
+    
+    
 }

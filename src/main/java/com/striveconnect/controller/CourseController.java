@@ -32,10 +32,10 @@ public class CourseController {
      */
     @GetMapping
     public ResponseEntity<List<CourseDto>> getTenantCourses(
-            @RequestParam(defaultValue = "en") String lang) {
+            @RequestParam(defaultValue = "en") String lang , @RequestParam String tenantId) {
         // Tenant ID is set in TenantContext by the JwtRequestFilter
         // For public access, this might need adjustment
-        List<CourseDto> courses = courseService.getAllCourses(lang);
+        List<CourseDto> courses = courseService.getAllCourses(lang,tenantId);
         return ResponseEntity.ok(courses);
     }
 

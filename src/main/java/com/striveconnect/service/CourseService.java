@@ -26,8 +26,9 @@ public class CourseService {
     /**
      * Gets all courses for the current tenant, translated to the specified language.
      */
-    public List<CourseDto> getAllCourses(String languageCode) {
-        String tenantId = TenantContext.getCurrentTenant();
+    public List<CourseDto> getAllCourses(String languageCode,String tenantId) {
+    	if(tenantId==null)
+         tenantId = TenantContext.getCurrentTenant();
         List<Course> courses = courseRepository.findAllByTenantIdWithTranslations(tenantId);
         
         return courses.stream()

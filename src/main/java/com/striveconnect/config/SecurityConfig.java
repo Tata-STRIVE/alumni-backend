@@ -32,7 +32,8 @@ public class SecurityConfig {
             "/api/centers",
             "/api/batches",
             "/api/courses/**",
-            "/api/content/**"
+            "/api/content/**",
+            "/api/files/download/**"
     };
 
     public SecurityConfig(JwtRequestFilter jwtRequestFilter) {
