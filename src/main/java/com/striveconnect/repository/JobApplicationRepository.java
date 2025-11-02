@@ -17,5 +17,7 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
     
     // NEW: Find all applications submitted by a specific user
     List<JobApplication> findByUser(User user);
+
+	
 }
 

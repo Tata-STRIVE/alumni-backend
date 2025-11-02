@@ -24,7 +24,7 @@ public class UpskillingController {
     }
 
     // --- ANY AUTHENTICATED USER ---
-    @GetMapping
+    @GetMapping("/tenantId/{tenantId}")
     public ResponseEntity<List<UpskillingOpportunityDto>> getOpportunities() {
         List<UpskillingOpportunityDto> opportunities = upskillingService.getOpportunitiesForCurrentTenant();
         return ResponseEntity.ok(opportunities);

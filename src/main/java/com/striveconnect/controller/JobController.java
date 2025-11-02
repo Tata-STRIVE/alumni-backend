@@ -86,6 +86,14 @@ public class JobController {
         return ResponseEntity.ok(Map.of("message", "Job approved successfully."));
     }
     
+    
+    @GetMapping("/my-posts")
+    public ResponseEntity<List<JobPostingDto>> getJobsPosted( ) {
+      
+    	 List<JobPostingDto> applications = jobService.getJobsPostedbyMe();
+         return ResponseEntity.ok(applications);
+    }
+    
    
 }
 

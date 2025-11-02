@@ -1,6 +1,8 @@
 package com.striveconnect.repository;
 
 import com.striveconnect.entity.JobPosting;
+import com.striveconnect.entity.User;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -22,5 +24,12 @@ public interface JobPostingRepository extends JpaRepository<JobPosting, Long> {
      */
     @Query("SELECT j FROM JobPosting j WHERE j.tenantId = :tenantId ORDER BY j.createdAt DESC")
     List<JobPosting> findAllByTenantId(String tenantId);
+
+    /**
+     * --- THIS IS THE CORRECT METHOD ---
+     * Finds all jobs posted by a specific User object, ordered by creation date.
+     * Spring Data JPA builds the query from the method name.
+     */
+    List<JobPosting> findByAuthorOrderByCreatedAtDesc(User author);
 }
 

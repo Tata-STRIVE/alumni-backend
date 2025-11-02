@@ -27,8 +27,8 @@ public class CenterController {
      *
      * @return A list of centers.
      */
-    @GetMapping
-    public ResponseEntity<List<CenterDto>> getTenantCenters(@RequestParam String tenantId) {
+    @GetMapping("/tenantId/{tenantId}")
+    public ResponseEntity<List<CenterDto>> getTenantCenters(@PathVariable String tenantId) {
         List<CenterDto> centers = centerService.getCentersByTenant(tenantId);
         return ResponseEntity.ok(centers);
     }

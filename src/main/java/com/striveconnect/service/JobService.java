@@ -206,6 +206,12 @@ public class JobService {
         dto.setCompanyName(jobPosting.getCompanyName());
         dto.setLocation(jobPosting.getLocation());
         dto.setDescription(jobPosting.getDescription());
+        dto.setStatus(jobPosting.getStatus().name());
+        dto.setRejectionRemarks(jobPosting.getRejectionRemarks());
+        dto.setHrContactPhone(jobPosting.getHrContactPhone());
+        dto.setHrContactEmail(jobPosting.getHrContactEmail());
+
+        
         return dto;
     }
     private ApplicationDto convertApplicationToDto(JobApplication application) {
@@ -216,5 +222,19 @@ public class JobService {
         dto.setStatus(application.getStatus().name());
         return dto;
     }
+
+	public List<JobPostingDto> getJobsPostedbyMe() {
+		
+		  User currentUser = getCurrentUser();
+	        List<JobPosting> jobPosting = jobPostingRepository.findByAuthorOrderByCreatedAtDesc(currentUser);
+	        
+	        return jobPosting.stream()
+	                .map(this::convertToDto)
+	                .collect(Collectors.toList());
+		
+		
+		
+		
+	}
 }
 
