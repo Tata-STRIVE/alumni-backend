@@ -57,6 +57,17 @@ public class ContentPost {
         AWARENESS,STORY
     }
 
+    @Column(nullable = false)
+    private boolean isActive = true;
+
+    public boolean isActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+        isActive = active;
+    }
+    
     // Getters and Setters
     public Long getPostId() { return postId; }
     public void setPostId(Long postId) { this.postId = postId; }

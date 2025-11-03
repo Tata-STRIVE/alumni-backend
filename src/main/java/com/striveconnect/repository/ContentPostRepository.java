@@ -10,5 +10,9 @@ import java.util.List;
 public interface ContentPostRepository extends JpaRepository<ContentPost, Long> {
 
     // Find all posts for a specific tenant and of a specific type
-    List<ContentPost> findByTenantIdAndPostType(String tenantId, ContentPost.PostType postType);
+    // 	List<ContentPost> findByTenantIdAndPostType(String tenantId, ContentPost.PostType postType);
+    
+    
+    List<ContentPost> findByTenantIdAndPostTypeAndIsActiveTrue(String tenantId, ContentPost.PostType postType);
+
 }

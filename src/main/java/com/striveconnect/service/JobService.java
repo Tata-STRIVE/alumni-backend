@@ -79,6 +79,8 @@ public class JobService {
         jobPosting.setAuthor(currentUser);
         jobPosting.setStatus(JobPosting.JobStatus.PENDING_VERIFICATION); // Set status for admin review
         jobPosting.setCreatedAt(LocalDateTime.now());
+        jobPosting.setHrContactEmail(createDto.getHrContactEmail());
+        jobPosting.setHrContactPhone(createDto.getHrContactPhone()); 
         
         JobPosting savedJob = jobPostingRepository.save(jobPosting);
         return convertToDto(savedJob);
@@ -164,6 +166,8 @@ public class JobService {
         jobPosting.setAuthor(adminUser);
         jobPosting.setStatus(JobPosting.JobStatus.OPEN);
         jobPosting.setCreatedAt(LocalDateTime.now());
+        jobPosting.setHrContactEmail(createDto.getHrContactEmail());
+        jobPosting.setHrContactPhone(createDto.getHrContactPhone()); 
         JobPosting savedJob = jobPostingRepository.save(jobPosting);
         return convertToDto(savedJob);
     }
@@ -232,9 +236,41 @@ public class JobService {
 	                .map(this::convertToDto)
 	                .collect(Collectors.toList());
 		
-		
-		
-		
 	}
+	
+	public JobPostingDto updateJobPosting(Long jobId, CreateJobRequestDto updateDto) {
+	    JobPosting job = findJobAndVerifyTenant(jobId);
+
+	    if (job instanceof JobPosting jp && jp.getStatus() == JobPosting.JobStatus.CLOSED) {
+	        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Closed jobs cannot be edited");
+	    }
+
+	    if (!job.isActive()) {
+	        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot update inactive job");
+	    }
+	    User currentUser = getCurrentUser(); 
+
+	    job.setTitle(updateDto.getTitle());
+	    job.setCompanyName(updateDto.getCompanyName());
+	    job.setLocation(updateDto.getLocation());
+	    job.setDescription(updateDto.getDescription());
+	    job.setHrContactEmail(updateDto.getHrContactEmail());
+	    job.setHrContactPhone(updateDto.getHrContactPhone());
+	    job.setUpdatedBy(currentUser);
+	    job.setUpdatedAt(LocalDateTime.now());
+	    JobPosting saved = jobPostingRepository.save(job);
+	    return convertToDto(saved);
+	}
+
+	public void softDeleteJob(Long jobId) {
+	    User currentUser = getCurrentUser(); 
+
+	    JobPosting job = findJobAndVerifyTenant(jobId);
+	    job.setActive(false);
+	    job.setUpdatedBy(currentUser);
+	    job.setUpdatedAt(LocalDateTime.now());
+	    jobPostingRepository.save(job);
+	}
+
 }
 

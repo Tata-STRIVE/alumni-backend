@@ -67,6 +67,41 @@ public class JobPosting {
         CLOSED            // Closed/Filled
     }
 
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "updated_by_user_id")
+    private User updatedBy;
+
+    private LocalDateTime updatedAt;
+    
+    @Column(nullable = false)
+    private boolean isActive = true;
+
+    public boolean isActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+        this.isActive = active;
+    }
+
+    public User getUpdatedBy() {
+        return updatedBy;
+        	
+    }
+
+    public void setUpdatedBy(User updatedBy) {
+        this.updatedBy = updatedBy;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

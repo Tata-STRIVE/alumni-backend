@@ -33,7 +33,7 @@ public class ContentService {
      */
     public List<ContentPostDto> getPosts(String postType, String tenantId) {
         ContentPost.PostType type = ContentPost.PostType.valueOf(postType.toUpperCase());
-        List<ContentPost> posts = contentPostRepository.findByTenantIdAndPostType(tenantId, type);
+        List<ContentPost> posts = contentPostRepository.findByTenantIdAndPostTypeAndIsActiveTrue(tenantId, type);
         
         return posts.stream()
                 .map(this::convertToDto)
@@ -69,6 +69,39 @@ public class ContentService {
         return convertToDto(savedPost);
     }
 
+    
+    
+    
+    /**
+     * Admin: Creates a new content post (Story or Event).
+     */
+    public ContentPostDto updatePost(ContentPostCreateDto createDto) {
+        User adminUser = getCurrentUser();
+        String tenantId = adminUser.getTenantId();
+        
+        ContentPost post = new ContentPost();
+        post.setTenantId(tenantId);
+        post.setAuthor(adminUser);
+        post.setTitle(createDto.getTitle());
+        post.setContent(createDto.getContent());
+
+        ContentPost.PostType type = ContentPost.PostType.valueOf(createDto.getPostType().toUpperCase());
+        post.setPostType(type);
+
+        if (type == ContentPost.PostType.SUCCESS_STORY) {
+            User alumnusUser = userRepository.findById(createDto.getAlumnusUserId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alumnus user not found."));
+            post.setAlumnusUser(alumnusUser);
+            post.setStudentPhotoUrl(createDto.getStudentPhotoUrl());
+        } else if (type == ContentPost.PostType.EVENT) {
+            post.setEventDate(createDto.getEventDate());
+        }
+
+        ContentPost savedPost = contentPostRepository.save(post);
+        return convertToDto(savedPost);
+    }
+    
+    
     private User getCurrentUser() {
         String mobileNumber = SecurityContextHolder.getContext().getAuthentication().getName();
         String tenantId = TenantContext.getCurrentTenant();
@@ -109,5 +142,48 @@ public class ContentService {
         
         return dto;
     }
+    
+    
+    
+    public ContentPostDto updatePost(Long postId, ContentPostCreateDto updateDto) {
+        ContentPost post = contentPostRepository.findById(postId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
+
+        // Only update active posts
+        if (!post.isActive()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot update inactive post");
+        }
+
+        post.setTitle(updateDto.getTitle());
+        post.setContent(updateDto.getContent());
+        post.setPostType(ContentPost.PostType.valueOf(updateDto.getPostType().toUpperCase()));
+
+        if (post.getPostType() == ContentPost.PostType.SUCCESS_STORY) {
+            if (updateDto.getAlumnusUserId() != null) {
+                User alumnusUser = userRepository.findById(updateDto.getAlumnusUserId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alumnus user not found"));
+                post.setAlumnusUser(alumnusUser);
+            }
+            post.setStudentPhotoUrl(updateDto.getStudentPhotoUrl());
+            post.setEventDate(null); // clear event date if switching type
+        } else if (post.getPostType() == ContentPost.PostType.EVENT) {
+            post.setEventDate(updateDto.getEventDate());
+            post.setAlumnusUser(null);
+            post.setStudentPhotoUrl(null);
+        }
+
+        ContentPost saved = contentPostRepository.save(post);
+        return convertToDto(saved);
+    }
+
+    public void softDeletePost(Long postId) {
+        ContentPost post = contentPostRepository.findById(postId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
+
+        post.setActive(false);
+        contentPostRepository.save(post);
+    }
+
+    
 }
 

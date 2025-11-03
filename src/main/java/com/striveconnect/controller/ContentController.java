@@ -44,5 +44,22 @@ public class ContentController {
         ContentPostDto createdPost = contentService.createPost(createDto);
         return new ResponseEntity<>(createdPost, HttpStatus.CREATED);
     }
+    
+    
+    @PutMapping("/{postId}")
+    public ResponseEntity<ContentPostDto> updatePost(
+            @PathVariable Long postId,
+            @RequestBody ContentPostCreateDto updateDto) {
+
+        ContentPostDto updatedPost = contentService.updatePost(postId, updateDto);
+        return ResponseEntity.ok(updatedPost);
+    }
+
+    @DeleteMapping("/{postId}")
+    public ResponseEntity<Void> deletePost(@PathVariable Long postId) {
+        contentService.softDeletePost(postId);
+        return ResponseEntity.noContent().build();
+    }
+    
 }
 

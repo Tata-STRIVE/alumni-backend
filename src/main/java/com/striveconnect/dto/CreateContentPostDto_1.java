@@ -3,7 +3,7 @@ package com.striveconnect.dto;
 /**
  * Data Transfer Object for creating a new content post.
  */
-public class CreateContentPostDto {
+public class CreateContentPostDto_1 {
     private String postType;
     private String title;
     private String content;
