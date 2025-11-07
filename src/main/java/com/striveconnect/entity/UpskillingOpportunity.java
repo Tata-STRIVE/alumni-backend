@@ -20,6 +20,11 @@ public class UpskillingOpportunity {
 
     private String prerequisites;
     private LocalDate startDate;
+    private LocalDate endDate;
+
+    
+    private String link;
+
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "posted_by_user_id")
@@ -44,4 +49,19 @@ public class UpskillingOpportunity {
     public void setPostedBy(User postedBy) { this.postedBy = postedBy; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+	public LocalDate getEndDate() {
+		return endDate;
+	}
+	public void setEndDate(LocalDate endDate) {
+		this.endDate = endDate;
+	}
+	public String getLink() {
+		return link;
+	}
+	public void setLink(String link) {
+		this.link = link;
+	}
+    
+    
+    
 }

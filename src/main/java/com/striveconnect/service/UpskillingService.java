@@ -12,6 +12,9 @@ import com.striveconnect.repository.UpskillingApplicationRepository;
 import com.striveconnect.repository.UpskillingOpportunityRepository;
 import com.striveconnect.repository.UserRepository;
 import com.striveconnect.util.TenantContext;
+
+import jakarta.transaction.Transactional;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -115,7 +118,7 @@ public class UpskillingService {
      */
     public List<ApplicationDto> getApplicationsForOpportunity(Long opportunityId) {
         UpskillingOpportunity opportunity = findOpportunityAndVerifyTenant(opportunityId);
-        List<UpskillingApplication> applications = applicationRepository.findByOpportunity(opportunity);
+        List<UpskillingApplication> applications = applicationRepository.findByOpportunityIdAndStatus(opportunityId);
 
         return applications.stream()
                 .map(this::convertApplicationToDto)
@@ -134,8 +137,16 @@ public class UpskillingService {
 
         try {
             UpskillingApplication.ApplicationStatus newStatus = UpskillingApplication.ApplicationStatus.valueOf(statusDto.getStatus().toUpperCase());
+         System.out.println(newStatus);
+            
             application.setStatus(newStatus);
+            System.out.println(newStatus);
+
+            
             applicationRepository.save(application);
+            
+            System.out.println(newStatus);
+
         } catch (IllegalArgumentException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid status provided");
         }
@@ -201,5 +212,30 @@ public class UpskillingService {
         
         applicationRepository.save(application);
     }
+    
+    
+    @Transactional
+    public UpskillingOpportunityDto updateOpportunity(Long id, CreateUpskillingOpportunityDto dto) {
+        UpskillingOpportunity opportunity = opportunityRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Upskilling opportunity not found"));
+
+        opportunity.setTitle(dto.getTitle());
+        opportunity.setDescription(dto.getDescription());
+        opportunity.setStartDate(dto.getStartDate());
+        opportunity.setEndDate(dto.getEndDate());
+       // opportunity.setLink(dto.getLink());
+
+        UpskillingOpportunity saved = opportunityRepository.save(opportunity);
+        return UpskillingOpportunityDto.fromEntity(saved);
+    }
+    
+    @Transactional
+    public void deleteOpportunity(Long id) {
+        UpskillingOpportunity opportunity = opportunityRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Upskilling opportunity not found"));
+        opportunityRepository.delete(opportunity);
+    }
+
+    
 }
 

@@ -4,7 +4,7 @@ package com.striveconnect.dto;
  * Data Transfer Object for displaying an application to an Admin.
  * Provides a summary of the applicant and their application status.
  */
-public class Batch {
+public class Center1 {
     private Long applicationId;
     private String applicantName;
     private String applicantMobile;

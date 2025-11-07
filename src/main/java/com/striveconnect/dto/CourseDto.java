@@ -1,5 +1,6 @@
 package com.striveconnect.dto;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -16,6 +17,35 @@ public class CourseDto {
     private String description;
     private String eligibilityCriteria;
     private String careerPath;
+    private String createdBy;
+    private LocalDateTime createdAt;
+    private String updatedBy;
+	private LocalDateTime updatedAt;
+
+    public String getCreatedBy() {
+		return createdBy;
+	}
+	public void setCreatedBy(String createdBy) {
+		this.createdBy = createdBy;
+	}
+	public LocalDateTime getCreatedAt() {
+		return createdAt;
+	}
+	public void setCreatedAt(LocalDateTime createdAt) {
+		this.createdAt = createdAt;
+	}
+	public String getUpdatedBy() {
+		return updatedBy;
+	}
+	public void setUpdatedBy(String updatedBy) {
+		this.updatedBy = updatedBy;
+	}
+	public LocalDateTime getUpdatedAt() {
+		return updatedAt;
+	}
+	public void setUpdatedAt(LocalDateTime updatedAt) {
+		this.updatedAt = updatedAt;
+	}
 
     // Upcoming batches for this course
     private List<BatchDto> upcomingBatches;

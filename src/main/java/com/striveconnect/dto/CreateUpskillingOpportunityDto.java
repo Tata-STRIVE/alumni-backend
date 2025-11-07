@@ -10,6 +10,8 @@ public class CreateUpskillingOpportunityDto {
     private String description;
     private String prerequisites;
     private LocalDate startDate;
+    private LocalDate endDate;
+
 
     // Getters and Setters
     public String getTitle() { return title; }
@@ -20,4 +22,11 @@ public class CreateUpskillingOpportunityDto {
     public void setPrerequisites(String prerequisites) { this.prerequisites = prerequisites; }
     public LocalDate getStartDate() { return startDate; }
     public void setStartDate(LocalDate startDate) { this.startDate = startDate; }
+	public LocalDate getEndDate() {
+		return endDate;
+	}
+	public void setEndDate(LocalDate endDate) {
+		this.endDate = endDate;
+	}
+    
 }

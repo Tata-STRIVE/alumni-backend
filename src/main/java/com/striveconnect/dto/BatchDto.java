@@ -17,7 +17,21 @@ public class BatchDto {
     // Flattened data from related tables
     private String courseName;
     private String centerName;
-    private String centerCity;
+    private long courseId;
+    private long centerId;
+    public long getCourseId() {
+		return courseId;
+	}
+	public void setCourseId(long courseId) {
+		this.courseId = courseId;
+	}
+	public long getCenterId() {
+		return centerId;
+	}
+	public void setCenterId(long centerId) {
+		this.centerId = centerId;
+	}
+	private String centerCity;
 
     // Getters and Setters
     public Long getBatchId() { return batchId; }

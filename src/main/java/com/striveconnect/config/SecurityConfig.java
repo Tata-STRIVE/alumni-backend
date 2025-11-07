@@ -1,4 +1,4 @@
-package com.striveconnect.config;
+	package com.striveconnect.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,6 +15,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import jakarta.servlet.http.HttpServletResponse;
+
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -28,9 +30,9 @@ public class SecurityConfig {
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/api/content/**",
-            "/api/courses",
-            "/api/centers",
-            "/api/batches",
+            "/api/courses/**",
+            "/api/centers/**",
+            "/api/batches/**",
             "/api/courses/**",
             "/api/content/**",
             "/api/files/download/**"
@@ -76,12 +78,20 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.GET, "/api/jobs/pending").hasAnyRole("CENTER_ADMIN", "SUPER_ADMIN")
                     .requestMatchers(HttpMethod.POST, "/api/jobs/{jobId}/approve").hasAnyRole("CENTER_ADMIN", "SUPER_ADMIN")
                     .requestMatchers(HttpMethod.POST, "/api/content").hasAnyRole("CENTER_ADMIN", "SUPER_ADMIN") // NEW RULE
+                    .requestMatchers(HttpMethod.PUT, "/api/content").hasAnyRole("CENTER_ADMIN", "SUPER_ADMIN") // NEW RULE
+                    .requestMatchers(HttpMethod.DELETE, "/api/content").hasAnyRole("CENTER_ADMIN", "SUPER_ADMIN") // NEW RULE
 
                     .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
         http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+        http.exceptionHandling(e -> e
+        	    .authenticationEntryPoint((req, res, ex) -> {
+        	        System.out.println("🔒 SecurityConfig authenticationEntryPoint triggered for " + req.getRequestURI());
+        	        res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized from SecurityConfig");
+        	    })
+        	);
 
         return http.build();
     }

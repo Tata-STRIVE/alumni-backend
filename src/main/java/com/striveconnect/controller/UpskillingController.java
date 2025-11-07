@@ -64,5 +64,21 @@ public class UpskillingController {
         upskillingService.updateApplicationStatus(applicationId, statusDto);
         return ResponseEntity.ok(Map.of("message", "Upskilling application status updated successfully"));
     }
+    
+    @PutMapping("/{opportunityId}")
+    public ResponseEntity<UpskillingOpportunityDto> updateOpportunity(
+            @PathVariable Long opportunityId,
+            @RequestBody CreateUpskillingOpportunityDto updateDto) {
+
+        UpskillingOpportunityDto updated = upskillingService.updateOpportunity(opportunityId, updateDto);
+        return ResponseEntity.ok(updated);
+    }
+
+    @DeleteMapping("/{opportunityId}")
+    public ResponseEntity<?> deleteOpportunity(@PathVariable Long opportunityId) {
+        upskillingService.deleteOpportunity(opportunityId);
+        return ResponseEntity.ok(Map.of("message", "Opportunity deleted successfully"));
+    }
+
 }
 
