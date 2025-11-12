@@ -3,7 +3,10 @@ package com.striveconnect.controller;
 import com.striveconnect.dto.AdminReviewDto;
 import com.striveconnect.dto.EmploymentHistoryDto;
 import com.striveconnect.service.EmploymentHistoryService;
+
 import jakarta.validation.Valid;
+
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,62 +14,66 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/employment-history")
+@CrossOrigin
 public class EmploymentHistoryController {
 
-    private final EmploymentHistoryService historyService;
+    private final EmploymentHistoryService employmentHistoryService;
 
-    public EmploymentHistoryController(EmploymentHistoryService historyService) {
-        this.historyService = historyService;
+    public EmploymentHistoryController(EmploymentHistoryService employmentHistoryService) {
+        this.employmentHistoryService = employmentHistoryService;
     }
 
-    /**
-     * Alumnus: Gets their own employment history.
-     */
-    @GetMapping("/me")
-    public ResponseEntity<List<EmploymentHistoryDto>> getMyHistory() {
-        return ResponseEntity.ok(historyService.getMyHistory());
-    }
-
-    /**
-     * Alumnus: Adds a new employment history record.
-     */
+    // 🟢 Add new employment record (Alumnus)
     @PostMapping
-    public ResponseEntity<EmploymentHistoryDto> addHistory(@Valid @RequestBody EmploymentHistoryDto historyDto) {
-        return ResponseEntity.ok(historyService.addHistory(historyDto));
+    public ResponseEntity<EmploymentHistoryDto> createEmployment(@RequestBody EmploymentHistoryDto dto) {
+        EmploymentHistoryDto created = employmentHistoryService.createEmploymentHistory(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    /**
-     * Alumnus: Updates their own employment history record.
-     * Can only update records that are "PENDING_VERIFICATION" or "REJECTED".
-     */
+    // 🟡 Update employment (Alumnus)
     @PutMapping("/{historyId}")
-    public ResponseEntity<EmploymentHistoryDto> updateHistory(@PathVariable Long historyId, @Valid @RequestBody EmploymentHistoryDto historyDto) {
-        return ResponseEntity.ok(historyService.updateHistory(historyId, historyDto));
+    public ResponseEntity<EmploymentHistoryDto> updateEmployment(
+            @PathVariable Long historyId,
+            @RequestBody EmploymentHistoryDto dto) {
+
+        EmploymentHistoryDto updated = employmentHistoryService.updateEmploymentHistory(historyId, dto);
+        return ResponseEntity.ok(updated);
     }
 
-    /**
-     * Admin: Gets all pending history records for their tenant.
-     */
+    // 🔍 Get my employment history (Alumnus)
+    @GetMapping("/me")
+    public ResponseEntity<List<EmploymentHistoryDto>> getMyEmploymentHistory() {
+        return ResponseEntity.ok(employmentHistoryService.getEmploymentHistoryForCurrentUser());
+    }
+
+    // 🔍 Admin: Get pending employment history for review
     @GetMapping("/pending")
-    public ResponseEntity<List<EmploymentHistoryDto>> getPendingEmploymentHistory() {
-        return ResponseEntity.ok(historyService.getPendingHistory());
+    public ResponseEntity<List<EmploymentHistoryDto>> getPendingVerifications() {
+        return ResponseEntity.ok(employmentHistoryService.getPendingEmploymentHistory());
     }
 
+	/*
+	 * // ✅ Admin: Approve or reject employment record
+	 * 
+	 * @PostMapping("/{historyId}/verify") public ResponseEntity<Void>
+	 * verifyEmployment(
+	 * 
+	 * @PathVariable Long historyId,
+	 * 
+	 * @RequestParam boolean approved) {
+	 * 
+	 * employmentHistoryService.verifyEmploymentHistory(historyId, approved,null);
+	 * return ResponseEntity.noContent().build(); }
+	 */
+    
+    
     /**
      * Admin: Approves or Rejects a history record.
      * Replaces the old "/verify" endpoint.
      */
     @PostMapping("/{historyId}/review")
     public ResponseEntity<EmploymentHistoryDto> reviewHistory(@PathVariable Long historyId, @Valid @RequestBody AdminReviewDto reviewDto) {
-        return ResponseEntity.ok(historyService.reviewHistory(historyId, reviewDto));
+        return ResponseEntity.ok(employmentHistoryService.reviewHistory(historyId, reviewDto));
     }
     
-    /**
-     * Admin: Gets history for a specific user.
-     */
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<List<EmploymentHistoryDto>> getHistoryForUser(@PathVariable String userId) {
-        return ResponseEntity.ok(historyService.getHistoryForUser(userId));
-    }
 }
-

@@ -3,6 +3,7 @@ package com.striveconnect.service;
 import com.striveconnect.dto.RegistrationRequestDto;
 import com.striveconnect.dto.UpdateProfileDto;
 import com.striveconnect.dto.UserDto;
+import com.striveconnect.entity.AlumniBatch;
 import com.striveconnect.entity.Batch;
 import com.striveconnect.entity.User;
 import com.striveconnect.repository.BatchRepository;
@@ -42,22 +43,12 @@ public class UserService {
 
         userRepository.findByMobileNumberAndTenantId(mobileNumber, tenantId)
             .ifPresent(u -> {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "A user with this mobile number already exists for this organization.");
+                throw new ResponseStatusException(HttpStatus.CONFLICT, 
+                    "A user with this mobile number already exists for this organization.");
             });
-        
-        // Find the selected batch
+
+        // Create new User
         User newUser = new User();
-
-        if (registrationRequest.getBatchId() != null) {
-        Batch batch = batchRepository.findById(registrationRequest.getBatchId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Selected batch not found."));
-
-        // Security check: Ensure the batch belongs to the same tenant
-        if (!batch.getTenantId().equals(tenantId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid batch selection.");
-        }
-        newUser.setBatch(batch); // Link the user to the batch
-        }
         newUser.setUserId(UUID.randomUUID().toString());
         newUser.setTenantId(tenantId);
         newUser.setFullName(registrationRequest.getFullName());
@@ -66,14 +57,27 @@ public class UserService {
         newUser.setRole(User.Role.ALUMNUS);
         newUser.setStatus(User.Status.PENDING_APPROVAL);
         newUser.setHighestEducationQualification(registrationRequest.getHighestEducationQualification());
-        newUser.setEmail(registrationRequest.getEmail());
         newUser.setProfilePictureUrl(registrationRequest.getProfilePictureUrl());
 
+        // ✅ If batch selected, link through AlumniBatch
+        if (registrationRequest.getBatchId() != null) {
+            Batch batch = batchRepository.findById(registrationRequest.getBatchId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Selected batch not found."));
+
+            if (!batch.getTenantId().equals(tenantId)) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Invalid batch selection.");
+            }
+
+            AlumniBatch alumniBatch = new AlumniBatch();
+            alumniBatch.setBatch(batch);
+            alumniBatch.setAlumnus(newUser);
+            alumniBatch.setEngagementId(UUID.randomUUID().toString()); // optional unique engagement ID
+            newUser.getAlumniBatches().add(alumniBatch); // ✅ correct way to link
+        }
 
         User savedUser = userRepository.save(newUser);
         return convertToDto(savedUser);
     }
-    
 
    
 

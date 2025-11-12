@@ -1,208 +1,226 @@
 package com.striveconnect.service;
 
-import com.striveconnect.dto.BatchCreateDto;
-import com.striveconnect.dto.BatchDto;
 import com.striveconnect.dto.CourseDto;
-import com.striveconnect.entity.Batch;
-import com.striveconnect.entity.Course;
-import com.striveconnect.entity.CourseTranslation;
-import com.striveconnect.entity.User;
-import com.striveconnect.repository.CourseRepository;
-import com.striveconnect.repository.UserRepository;
+import com.striveconnect.entity.*;
+import com.striveconnect.repository.*;
 import com.striveconnect.util.TenantContext;
-
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
 public class CourseService {
 
     private final CourseRepository courseRepository;
-    private final BatchService batchService;
     private final UserRepository userRepository;
+    private final BatchRepository batchRepository;
 
-    public CourseService(CourseRepository courseRepository, BatchService batchService, UserRepository userRepository) {
+    public CourseService(CourseRepository courseRepository,
+                         UserRepository userRepository,
+                         BatchRepository batchRepository) {
         this.courseRepository = courseRepository;
-        this.batchService = batchService;
         this.userRepository = userRepository;
+        this.batchRepository = batchRepository;
     }
 
-    // --------------------------------------------------------------------------------------------
-    // 🔐 Helper: Get current authenticated user with tenant context
-    // --------------------------------------------------------------------------------------------
+    // ✅ Get current authenticated user
     private User getCurrentUser() {
-        String mobileNumber = SecurityContextHolder.getContext().getAuthentication().getName();
-        String tenantId = TenantContext.getCurrentTenant();
+        String mobile = SecurityContextHolder.getContext().getAuthentication().getName();
+        String tenant = TenantContext.getCurrentTenant();
 
-        return userRepository.findByMobileNumberAndTenantId(mobileNumber, tenantId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED, "Authenticated user not found or session expired."));
+        return userRepository.findByMobileNumberAndTenantId(mobile, tenant)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
     }
 
-    /**
-     * Safe version that returns null if no authenticated user exists.
-     */
-    private User getCurrentUserOrNull() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
-            return null;
-        }
-
-        String mobileNumber = auth.getName();
-        String tenantId = TenantContext.getCurrentTenant();
-        return userRepository.findByMobileNumberAndTenantId(mobileNumber, tenantId).orElse(null);
-    }
-
-    // --------------------------------------------------------------------------------------------
-    // 🟢 CREATE
-    // --------------------------------------------------------------------------------------------
+    // 🟢 CREATE COURSE
     @Transactional
-    public Course createCourse(Course course) {
-        User currentUser = getCurrentUser();
+    public Course createFromDto(CourseDto dto) {
+        User user = getCurrentUser();
 
-        if (currentUser.getTenantId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tenant information missing for user.");
-        }
-
-        course.setTenantId(currentUser.getTenantId());
-        course.setCreatedBy(currentUser);
-        course.setCreatedAt(LocalDateTime.now());
+        Course course = new Course();
+        course.setTenantId(user.getTenantId());
         course.setActive(true);
+        course.setIconUrl(dto.getIconUrl());
+        course.setCreatedBy(user);
+        course.setCreatedAt(LocalDateTime.now());
+        course.setTranslations(new ArrayList<>());
 
-        if (course.getTranslations() != null) {
-            course.getTranslations().forEach(t -> t.setCourse(course));
+        if (dto.getTranslations() != null) {
+            for (CourseDto.TranslationDto t : dto.getTranslations()) {
+                CourseTranslation ct = new CourseTranslation();
+                ct.setLanguageCode(t.getLanguageCode());
+                ct.setName(t.getName());
+                ct.setDescription(t.getDescription());
+                ct.setEligibilityCriteria(t.getEligibilityCriteria());
+                ct.setCareerPath(t.getCareerPath());
+                ct.setCourse(course);
+                course.getTranslations().add(ct);
+            }
         }
 
         return courseRepository.save(course);
     }
 
-    // --------------------------------------------------------------------------------------------
-    // 🟡 UPDATE
-    // --------------------------------------------------------------------------------------------
+    // 🟡 UPDATE COURSE
+ // CourseService.java (excerpt - updateFromDto)
     @Transactional
-    public Course updateCourse(Long courseId, Course updatedCourse) {
-        User currentUser = getCurrentUser();
+    public Course updateFromDto(Long id, CourseDto dto) {
+        User user = getCurrentUser();
+        Course existing = courseRepository.findByIdWithTranslations(id);
 
-        Course existingCourse = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found."));
+        if (existing == null)
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found");
 
-        if (!existingCourse.getTenantId().equals(currentUser.getTenantId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied for this course.");
+        if (!existing.getTenantId().equals(user.getTenantId()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Unauthorized");
+
+        existing.setIconUrl(dto.getIconUrl());
+        existing.setUpdatedBy(user);
+        existing.setUpdatedAt(LocalDateTime.now());
+
+        // Ensure translations list exists
+        if (existing.getTranslations() == null) {
+            existing.setTranslations(new ArrayList<>());
         }
 
-        existingCourse.setIconUrl(updatedCourse.getIconUrl());
-        existingCourse.setUpdatedBy(currentUser);
-        existingCourse.setUpdatedAt(LocalDateTime.now());
+        // If DTO provides translations -> merge them
+        if (dto.getTranslations() != null && !dto.getTranslations().isEmpty()) {
+            // Map existing translations by language for quick lookup
+            Map<String, CourseTranslation> existingByLang = existing.getTranslations().stream()
+                    .collect(Collectors.toMap(t -> t.getLanguageCode().toUpperCase(), t -> t, (a,b) -> a));
 
-        existingCourse.getTranslations().clear();
-        if (updatedCourse.getTranslations() != null) {
-            updatedCourse.getTranslations().forEach(t -> t.setCourse(existingCourse));
-            existingCourse.getTranslations().addAll(updatedCourse.getTranslations());
+            for (CourseDto.TranslationDto tDto : dto.getTranslations()) {
+                if (tDto.getLanguageCode() == null) continue;
+                String lang = tDto.getLanguageCode().toUpperCase();
+
+                CourseTranslation existingTrans = existingByLang.get(lang);
+                if (existingTrans != null) {
+                    // Update only fields provided (defensive)
+                    if (tDto.getName() != null) existingTrans.setName(tDto.getName());
+                    if (tDto.getDescription() != null) existingTrans.setDescription(tDto.getDescription());
+                    if (tDto.getEligibilityCriteria() != null) existingTrans.setEligibilityCriteria(tDto.getEligibilityCriteria());
+                    if (tDto.getCareerPath() != null) existingTrans.setCareerPath(tDto.getCareerPath());
+                } else {
+                    // Create new translation record
+                    CourseTranslation ct = new CourseTranslation();
+                    ct.setLanguageCode(lang);
+                    ct.setName(tDto.getName());
+                    ct.setDescription(tDto.getDescription());
+                    ct.setEligibilityCriteria(tDto.getEligibilityCriteria());
+                    ct.setCareerPath(tDto.getCareerPath());
+                    ct.setCourse(existing);
+                    existing.getTranslations().add(ct);
+                }
+            }
+            // Do NOT clear existing translations that weren't in DTO — preserve them
+        } else {
+            // dto.getTranslations() is empty or null
+            // If we want to allow a full replace, only then we should clear list.
+            // For safety, we do nothing here to avoid accidental deletes.
         }
 
-        return courseRepository.save(existingCourse);
+        return courseRepository.save(existing);
     }
 
-    // --------------------------------------------------------------------------------------------
-    // 🔴 SOFT DELETE
-    // --------------------------------------------------------------------------------------------
+
+    // 🔴 DELETE (soft)
     @Transactional
-    public void softDeleteCourse(Long courseId) {
-        User currentUser = getCurrentUser();
-
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found."));
-
-        if (!course.getTenantId().equals(currentUser.getTenantId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied for this course.");
-        }
+    public void softDelete(Long id) {
+        User user = getCurrentUser();
+        Course course = courseRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found"));
+        if (!course.getTenantId().equals(user.getTenantId()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Unauthorized");
 
         course.setActive(false);
-        course.setUpdatedBy(currentUser);
+        course.setUpdatedBy(user);
         course.setUpdatedAt(LocalDateTime.now());
-
         courseRepository.save(course);
     }
 
-    // --------------------------------------------------------------------------------------------
-    // 🔍 READ METHODS
-    // --------------------------------------------------------------------------------------------
-    public List<CourseDto> getAllCourses(String languageCode, String tenantId) {
-        System.out.println("tenantId ==> getAllCourses " + tenantId);
-        if (tenantId == null) {
+    // 🔍 GET COURSES (tenant + lang)
+    @Transactional(readOnly = true)
+    public List<CourseDto> getCourses(String tenantId, String lang, boolean adminView) {
+        if (tenantId == null)
             tenantId = TenantContext.getCurrentTenant();
-        }
-        List<Course> courses = courseRepository.findAllByTenantIdWithTranslations(tenantId);
 
-        return courses.stream()
+        List<Course> list = courseRepository.findAllByTenantIdWithTranslations(tenantId);
+        return list.stream()
                 .filter(Course::isActive)
-                .map(course -> convertToDto(course, languageCode, true))
+                .map(c -> convertToDto(c, lang, adminView))
                 .collect(Collectors.toList());
     }
 
-    // --------------------------------------------------------------------------------------------
-    // 🧩 DTO Conversion (Safe for Public Access)
-    // --------------------------------------------------------------------------------------------
-    public CourseDto convertToDto(Course course, String languageCode, boolean includeBatches) {
+    // 🔍 GET COURSE BY ID (user mode)
+    @Transactional(readOnly = true)
+    public CourseDto getCourseById(Long id) {
+        Course course = courseRepository.findByIdWithTranslations(id);
+        if (course == null)
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found");
+        return convertToFullDto(course);
+    }
+
+    // 🔍 NEW — ADMIN: Get all translations
+    @Transactional(readOnly = true)
+    public CourseDto getCourseWithAllTranslations(Long id) {
+        Course course = courseRepository.findByIdWithTranslations(id);
+        if (course == null)
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Course not found");
+        return convertToFullDto(course);
+    }
+
+    // 🧭 Helper — for UI view
+    private CourseDto convertToDto(Course course, String lang, boolean adminView) {
         CourseDto dto = new CourseDto();
         dto.setCourseId(course.getCourseId());
+        dto.setTenantId(course.getTenantId());
         dto.setIconUrl(course.getIconUrl());
-        dto.setCreatedAt(course.getCreatedAt());
-        dto.setUpdatedAt(course.getUpdatedAt());
+        dto.setActive(course.isActive());
 
-        // ✅ Use the safe version to avoid 401 for anonymous users
-        User user = getCurrentUserOrNull();
-        if (user != null) {
-            dto.setCreatedBy(user.getUserId());
-            dto.setUpdatedBy(user.getUserId());
-        }
+        if (course.getTranslations() == null)
+            course.setTranslations(new ArrayList<>());
 
-        CourseTranslation translation = getTranslation(course, languageCode);
-        if (translation != null) {
-            dto.setName(translation.getName());
-            dto.setDescription(translation.getDescription());
-            dto.setEligibilityCriteria(translation.getEligibilityCriteria());
-            dto.setCareerPath(translation.getCareerPath());
-        } else {
-            dto.setName("Translation Missing (" + languageCode.toUpperCase() + ")");
-            dto.setDescription("Content unavailable in " + languageCode.toUpperCase());
-        }
+        CourseTranslation trans = course.getTranslations().stream()
+                .filter(t -> t.getLanguageCode().equalsIgnoreCase(lang))
+                .findFirst()
+                .orElseGet(() -> course.getTranslations().stream()
+                        .filter(t -> t.getLanguageCode().equalsIgnoreCase("EN"))
+                        .findFirst()
+                        .orElse(null));
 
-        if (includeBatches) {
-            List<BatchDto> upcomingBatches = batchService.getUpcomingBatchesForCourse(course.getCourseId(), languageCode);
-            dto.setUpcomingBatches(upcomingBatches);
+        if (adminView) {
+            dto.setTranslations(course.getTranslations()
+                    .stream()
+                    .map(CourseDto.TranslationDto::fromEntity)
+                    .collect(Collectors.toList()));
+        } else if (trans != null) {
+            dto.setName(trans.getName());
+            dto.setDescription(trans.getDescription());
+            dto.setEligibilityCriteria(trans.getEligibilityCriteria());
+            dto.setCareerPath(trans.getCareerPath());
+            dto.setTranslations(List.of(CourseDto.TranslationDto.fromEntity(trans)));
         }
 
         return dto;
     }
 
-    // --------------------------------------------------------------------------------------------
-    // 🌐 Translation Utility
-    // --------------------------------------------------------------------------------------------
-    public static CourseTranslation getTranslation(Course course, String languageCode) {
-        if (course == null || course.getTranslations() == null) return null;
-
-        return course.getTranslations().stream()
-                .filter(t -> t.getLanguageCode().equalsIgnoreCase(languageCode))
-                .findFirst()
-                .orElse(course.getTranslations().stream()
-                        .filter(t -> t.getLanguageCode().equalsIgnoreCase("en"))
-                        .findFirst()
-                        .orElse(null));
+    private CourseDto convertToFullDto(Course course) {
+        CourseDto dto = new CourseDto();
+        dto.setCourseId(course.getCourseId());
+        dto.setTenantId(course.getTenantId());
+        dto.setIconUrl(course.getIconUrl());
+        dto.setActive(course.isActive());
+        dto.setTranslations(course.getTranslations().stream()
+                .map(CourseDto.TranslationDto::fromEntity)
+                .collect(Collectors.toList()));
+        return dto;
     }
-    
-    
-    public Course getCourseById(Long id) {
-        return courseRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Course not found"));
-    }
-
 }

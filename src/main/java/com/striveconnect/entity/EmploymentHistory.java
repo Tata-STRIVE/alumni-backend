@@ -33,9 +33,20 @@ public class EmploymentHistory {
     @Column(nullable = false)
     private VerificationStatus status;
 
+    
+    @Column(name = "engagement_id")
+    private String engagementId;
+    
     // --- NEW FIELDS ---
     
-    /**
+    public String getEngagementId() {
+		return engagementId;
+	}
+
+	public void setEngagementId(String engagementId) {
+		this.engagementId = engagementId;
+	}
+	/**
      * Type of proof provided (e.g., "OFFER_LETTER", "SALARY_SLIP").
      */
     private String attachmentType; 
@@ -78,6 +89,11 @@ public class EmploymentHistory {
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
     }
+    
+    
+    @Column(nullable = false)
+    private String tenantId;
+   
 
     // --- Getters and Setters for all fields ---
 
@@ -107,4 +123,6 @@ public class EmploymentHistory {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    public String getTenantId() { return tenantId; }
+    public void setTenantId(String tenantId) { this.tenantId = tenantId; }
 }

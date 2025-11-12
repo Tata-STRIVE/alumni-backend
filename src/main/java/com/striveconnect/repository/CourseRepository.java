@@ -1,23 +1,17 @@
 package com.striveconnect.repository;
 
-import com.striveconnect.dto.CourseDto;
 import com.striveconnect.entity.Course;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.*;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
 import java.util.List;
 
 @Repository
 public interface CourseRepository extends JpaRepository<Course, Long> {
 
-    /**
-     * Finds all courses for a tenant, joining with translations to pre-fetch them.
-     * This is more efficient than firing N+1 queries.
-     */
-    @Query("SELECT c FROM Course c LEFT JOIN FETCH c.translations WHERE c.tenantId = :tenantId")
-    List<Course> findAllByTenantIdWithTranslations(String tenantId);
+    @Query("SELECT DISTINCT c FROM Course c LEFT JOIN FETCH c.translations t WHERE c.tenantId = :tenantId")
+    List<Course> findAllByTenantIdWithTranslations(@Param("tenantId") String tenantId);
 
-	
+    @Query("SELECT c FROM Course c LEFT JOIN FETCH c.translations WHERE c.courseId = :id")
+    Course findByIdWithTranslations(@Param("id") Long id);
 }
-

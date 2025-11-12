@@ -2,6 +2,7 @@ package com.striveconnect.service;
 
 import com.striveconnect.dto.ContentPostCreateDto;
 import com.striveconnect.dto.ContentPostDto;
+import com.striveconnect.entity.AlumniBatch;
 import com.striveconnect.entity.Batch;
 import com.striveconnect.entity.Center;
 import com.striveconnect.entity.ContentPost;
@@ -14,7 +15,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,145 +33,71 @@ public class ContentService {
     }
 
     /**
-     * Gets all posts of a specific type for the current tenant.
+     * 🔹 Fetch all posts by type (Story / Event) for a given tenant.
      */
     public List<ContentPostDto> getPosts(String postType, String tenantId) {
         ContentPost.PostType type = ContentPost.PostType.valueOf(postType.toUpperCase());
         List<ContentPost> posts = contentPostRepository.findByTenantIdAndPostTypeAndIsActiveTrue(tenantId, type);
-        
+
         return posts.stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Admin: Creates a new content post (Story or Event).
+     * 🔹 Create new post (Admin only) — either a Story or Event.
      */
-    public ContentPostDto createPost(ContentPostCreateDto createDto) {
-        User adminUser = getCurrentUser();
-        String tenantId = adminUser.getTenantId();
-        
+    public ContentPostDto createPost(ContentPostCreateDto dto) {
+        User admin = getCurrentUser();
+        String tenantId = admin.getTenantId();
+
         ContentPost post = new ContentPost();
         post.setTenantId(tenantId);
-        post.setAuthor(adminUser);
-        post.setTitle(createDto.getTitle());
-        post.setContent(createDto.getContent());
+        post.setAuthor(admin);
+        post.setTitle(dto.getTitle());
+        post.setContent(dto.getContent());
 
-        ContentPost.PostType type = ContentPost.PostType.valueOf(createDto.getPostType().toUpperCase());
+        ContentPost.PostType type = ContentPost.PostType.valueOf(dto.getPostType().toUpperCase());
         post.setPostType(type);
 
         if (type == ContentPost.PostType.SUCCESS_STORY) {
-            User alumnusUser = userRepository.findById(createDto.getAlumnusUserId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alumnus user not found."));
+            User alumnusUser = userRepository.findById(dto.getAlumnusUserId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alumnus user not found."));
             post.setAlumnusUser(alumnusUser);
-            post.setStudentPhotoUrl(createDto.getStudentPhotoUrl());
+            post.setStudentPhotoUrl(dto.getStudentPhotoUrl());
         } else if (type == ContentPost.PostType.EVENT) {
-            post.setEventDate(createDto.getEventDate());
+            post.setEventDate(dto.getEventDate());
         }
 
-        ContentPost savedPost = contentPostRepository.save(post);
-        return convertToDto(savedPost);
-    }
-
-    
-    
-    
-    /**
-     * Admin: Creates a new content post (Story or Event).
-     */
-    public ContentPostDto updatePost(ContentPostCreateDto createDto) {
-        User adminUser = getCurrentUser();
-        String tenantId = adminUser.getTenantId();
-        
-        ContentPost post = new ContentPost();
-        post.setTenantId(tenantId);
-        post.setAuthor(adminUser);
-        post.setTitle(createDto.getTitle());
-        post.setContent(createDto.getContent());
-
-        ContentPost.PostType type = ContentPost.PostType.valueOf(createDto.getPostType().toUpperCase());
-        post.setPostType(type);
-
-        if (type == ContentPost.PostType.SUCCESS_STORY) {
-            User alumnusUser = userRepository.findById(createDto.getAlumnusUserId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alumnus user not found."));
-            post.setAlumnusUser(alumnusUser);
-            post.setStudentPhotoUrl(createDto.getStudentPhotoUrl());
-        } else if (type == ContentPost.PostType.EVENT) {
-            post.setEventDate(createDto.getEventDate());
-        }
-
-        ContentPost savedPost = contentPostRepository.save(post);
-        return convertToDto(savedPost);
-    }
-    
-    
-    private User getCurrentUser() {
-        String mobileNumber = SecurityContextHolder.getContext().getAuthentication().getName();
-        String tenantId = TenantContext.getCurrentTenant();
-        return userRepository.findByMobileNumberAndTenantId(mobileNumber, tenantId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Authenticated user not found."));
+        ContentPost saved = contentPostRepository.save(post);
+        return convertToDto(saved);
     }
 
     /**
-     * Converts a ContentPost entity to a rich DTO for the frontend.
+     * 🔹 Update an existing post (Admin only).
      */
-    private ContentPostDto convertToDto(ContentPost post) {
-        ContentPostDto dto = new ContentPostDto();
-        dto.setPostId(post.getPostId());
-        dto.setPostType(post.getPostType().name());
-        dto.setTitle(post.getTitle());
-        dto.setContent(post.getContent());
-        dto.setCreatedAt(post.getCreatedAt());
-        
-        if (post.getAuthor() != null) {
-            dto.setAuthorName(post.getAuthor().getFullName());
-        }
-
-        if (post.getPostType() == ContentPost.PostType.SUCCESS_STORY && post.getAlumnusUser() != null) {
-            User alumnus = post.getAlumnusUser();
-            dto.setAlumnusName(alumnus.getFullName());
-            dto.setStudentPhotoUrl(post.getStudentPhotoUrl());
-            if (alumnus.getBatch() != null) {
-                Batch batch = alumnus.getBatch();
-                Center center = batch.getCenter();
-                dto.setAlumnusBatchName(batch.getBatchName());
-                if (center != null) {
-                    dto.setAlumnusCenterName(center.getName());
-                }
-            }
-        } else if (post.getPostType() == ContentPost.PostType.EVENT) {
-            dto.setEventDate(post.getEventDate());
-        }
-        
-        return dto;
-    }
-    
-    
-    
-    public ContentPostDto updatePost(Long postId, ContentPostCreateDto updateDto) {
+    public ContentPostDto updatePost(Long postId, ContentPostCreateDto dto) {
         ContentPost post = contentPostRepository.findById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
 
-        // Only update active posts
         if (!post.isActive()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot update inactive post");
         }
 
-        post.setTitle(updateDto.getTitle());
-        post.setContent(updateDto.getContent());
-        post.setPostType(ContentPost.PostType.valueOf(updateDto.getPostType().toUpperCase()));
+        post.setTitle(dto.getTitle());
+        post.setContent(dto.getContent());
+        post.setPostType(ContentPost.PostType.valueOf(dto.getPostType().toUpperCase()));
 
         if (post.getPostType() == ContentPost.PostType.SUCCESS_STORY) {
-            if (updateDto.getAlumnusUserId() != null) {
-                User alumnusUser = userRepository.findById(updateDto.getAlumnusUserId())
-                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alumnus user not found"));
+            if (dto.getAlumnusUserId() != null) {
+                User alumnusUser = userRepository.findById(dto.getAlumnusUserId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alumnus user not found."));
                 post.setAlumnusUser(alumnusUser);
             }
-            post.setStudentPhotoUrl(updateDto.getStudentPhotoUrl());
-            post.setEventDate(null); // clear event date if switching type
+            post.setStudentPhotoUrl(dto.getStudentPhotoUrl());
+            post.setEventDate(null);
         } else if (post.getPostType() == ContentPost.PostType.EVENT) {
-            post.setEventDate(updateDto.getEventDate());
+            post.setEventDate(dto.getEventDate());
             post.setAlumnusUser(null);
             post.setStudentPhotoUrl(null);
         }
@@ -176,14 +106,75 @@ public class ContentService {
         return convertToDto(saved);
     }
 
+    /**
+     * 🔹 Soft delete a post (Admin only).
+     */
     public void softDeletePost(Long postId) {
         ContentPost post = contentPostRepository.findById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
-
         post.setActive(false);
         contentPostRepository.save(post);
     }
 
-    
-}
+    // ---------------------------------------------------------------------
+    // 🔹 Helper Methods
+    // ---------------------------------------------------------------------
 
+    private User getCurrentUser() {
+        String mobile = SecurityContextHolder.getContext().getAuthentication().getName();
+        String tenantId = TenantContext.getCurrentTenant();
+        return userRepository.findByMobileNumberAndTenantId(mobile, tenantId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authenticated user not found."));
+    }
+
+    /**
+     * 🔹 Convert ContentPost → DTO
+     */
+    private ContentPostDto convertToDto(ContentPost post) {
+        ContentPostDto dto = new ContentPostDto();
+        dto.setPostId(post.getPostId());
+        dto.setPostType(post.getPostType().name());
+        dto.setTitle(post.getTitle());
+        dto.setContent(post.getContent());
+        dto.setCreatedAt(post.getCreatedAt());
+
+        if (post.getAuthor() != null) {
+            dto.setAuthorName(post.getAuthor().getFullName());
+        }
+
+        if (post.getPostType() == ContentPost.PostType.SUCCESS_STORY && post.getAlumnusUser() != null) {
+            User alumnus = post.getAlumnusUser();
+            dto.setAlumnusName(alumnus.getFullName());
+            dto.setStudentPhotoUrl(post.getStudentPhotoUrl());
+
+            // Safely pick one alumniBatch (e.g., latest by batch.startDate)
+            if (alumnus.getAlumniBatches() != null && !alumnus.getAlumniBatches().isEmpty()) {
+                AlumniBatch latest = alumnus.getAlumniBatches().stream()
+                    .filter(ab -> ab != null && ab.getBatch() != null)
+                    .max((a, b) -> {
+                        LocalDate aDate = a.getBatch().getStartDate();
+                        LocalDate bDate = b.getBatch().getStartDate();
+                        if (aDate == null && bDate == null) return 0;
+                        if (aDate == null) return -1;
+                        if (bDate == null) return 1;
+                        return aDate.compareTo(bDate);
+                    })
+                    .orElse(null);
+
+                if (latest != null && latest.getBatch() != null) {
+                    Batch batch = latest.getBatch();
+                    dto.setAlumnusBatchName(batch.getBatchName());
+                    if (batch.getCenter() != null) {
+                        dto.setAlumnusCenterName(batch.getCenter().getName());
+                    }
+                    // Optional: expose startDate or other batch fields if DTO has them
+                    // dto.setAlumnusBatchStartDate(batch.getStartDate());
+                }
+            }
+        } else if (post.getPostType() == ContentPost.PostType.EVENT) {
+            dto.setEventDate(post.getEventDate());
+        }
+
+        return dto;
+    }
+}
